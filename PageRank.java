@@ -18,6 +18,10 @@
 package org.limonadev;
 
 import java.io.IOException;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.StringTokenizer;
 
 import org.apache.hadoop.conf.Configuration;
@@ -31,35 +35,63 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.GenericOptionsParser;
 
 public class PageRank {
 
-  public static class FileCountMapper extends Mapper<Object, Text, Text, IntWritable> {
+  public static class OutUrlMapper extends Mapper<Object, Text, Text, Text> {
 
-    private Text word = new Text();
+    private Text fileKey = new Text();
+    private Text url = new Text();
+
+    private Pattern pattern = Pattern.compile("www.[a-zA-Z0-9]+.com", Pattern.CASE_INSENSITIVE);
+    private Matcher matcher;
 
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
       StringTokenizer itr = new StringTokenizer(value.toString());
+
+      FileSplit fileSplit = (FileSplit) context.getInputSplit();
+
+      String filename = fileSplit.getPath().getName();
+      fileKey.set(filename);
+
       while (itr.hasMoreTokens()) {
-        String w = itr.nextToken();
-        word.set(Character.toString(w.charAt(0)));
-        context.write(word, new IntWritable(w.length()));
+        String word = itr.nextToken();
+        matcher = pattern.matcher(word);
+
+        if (matcher.find()) {
+          url.set(matcher.group(0));
+          context.write(fileKey, url);
+        }
       }
     }
   }
 
-  public static class FileCountReducer extends Reducer<Text, FloatWritable, Text, IntWritable> {
-    private FloatWritable result = new FloatWritable();
+  public static class OutUrlReducer extends Reducer<Text, Text, Text, Text> {
+    private Text result = new Text();
 
-    public void reduce(Text key, Iterable<FloatWritable> values, Context context)
-        throws IOException, InterruptedException {
+    public void reduce(Text key, Iterable<Text> urls, Context context) throws IOException, InterruptedException {
+      Set<String> seenUrls = new HashSet<>();
+      seenUrls.add(key.toString());
 
-      /*
-       * float sum = 0; int size = 0; for (FloatWritable val : values) { sum +=
-       * val.get(); size++; } result.set(sum / size); context.write(key, result);
-       */
+      String urlsAndSize = "";
+      long size = 0;
+
+      for (Text u : urls) {
+        String url = u.toString();
+        if (!seenUrls.contains(url)) {
+          seenUrls.add(url);
+          urlsAndSize += " " + url;
+          size++;
+        }
+      }
+
+      urlsAndSize += " " + Long.toString(size);
+
+      result.set(urlsAndSize);
+      context.write(key, result);
     }
   }
 
@@ -72,11 +104,11 @@ public class PageRank {
     }
     Job job = new Job(conf, "file count");
     job.setJarByClass(PageRank.class);
-    job.setMapperClass(FileCountMapper.class);
-    job.setCombinerClass(FileCountReducer.class);
-    job.setReducerClass(FileCountReducer.class);
+    job.setMapperClass(OutUrlMapper.class);
+    // job.setCombinerClass(OutUrlReducer.class);
+    job.setReducerClass(OutUrlReducer.class);
     job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(IntWritable.class);
+    job.setOutputValueClass(Text.class);
 
     FileSystem hdfs = FileSystem.get(conf);
 
