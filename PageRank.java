@@ -93,6 +93,8 @@ public class PageRank {
           context.write(fileKey, url);
         }
       }
+      /// If there is no output URLs, it's necessary to appear at least
+      context.write(fileKey, fileKey);
     }
   }
 
@@ -101,7 +103,7 @@ public class PageRank {
 
     public void reduce(Text key, Iterable<Text> urls, Context context) throws IOException, InterruptedException {
       Set<String> seenUrls = new HashSet<>();
-      seenUrls.add(key.toString());
+      // seenUrls.add(key.toString());
 
       String urlsAndSize = "";
       long size = 0;
@@ -136,12 +138,17 @@ public class PageRank {
 
       String filename = fileSplit.getPath().getName();
 
-      if (itr.countTokens() == 2) {
+      if (itr.countTokens() == 2) { /// This means the line came from Rank files
         urlFrom.set(itr.nextToken());
         rank.set("**" + itr.nextToken() + "**");
 
         context.write(urlFrom, rank);
-      } else if (itr.countTokens() > 0) {
+      } else if (itr.countTokens() == 3) {
+        urlFrom.set(itr.nextToken());
+        count.set("##1##");
+
+        context.write(urlFrom, count);
+      } else if (itr.countTokens() > 3) {
         urlFrom.set(itr.nextToken());
 
         while (itr.hasMoreTokens()) {
@@ -185,10 +192,18 @@ public class PageRank {
         }
       }
 
-      double realEntry = Double.parseDouble(rank) / Integer.parseInt(count);
+      /// This means the web is not "pointing" other webs
+      if (count.equals("1")) {
+        result.set(" -1");
+        context.write(key, result);
+        return;
+      }
+
+      double realEntry = Double.parseDouble(rank) / (Integer.parseInt(count) - 1);
       urlsAndRank += " " + Double.toString(realEntry);
       result.set(urlsAndRank);
       context.write(key, result);
+
     }
   }
 
@@ -196,12 +211,15 @@ public class PageRank {
 
     private Text destUrl = new Text();
     private Text entry = new Text();
+    private Text temp = new Text();
 
     public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
       StringTokenizer itr = new StringTokenizer(value.toString());
 
+      temp.set("0");
+
       if (itr.countTokens() > 2) {
-        itr.nextToken(); // Ignore the first because is the source
+        String source = itr.nextToken();
         String rawEntry = "";
         while (itr.hasMoreTokens()) {
           rawEntry = itr.nextToken();
@@ -215,9 +233,22 @@ public class PageRank {
           String token = itr.nextToken();
           if (!itr.hasMoreTokens())
             break;
+
+          if (source.equals(token)) {
+            destUrl.set(source);
+            context.write(destUrl, temp);
+
+            continue;
+          }
+
           destUrl.set(token);
           context.write(destUrl, entry);
         }
+      } else if (itr.countTokens() == 2) {
+        String source = itr.nextToken();
+        destUrl.set(source);
+
+        context.write(destUrl, temp);
       }
     }
   }
@@ -227,11 +258,13 @@ public class PageRank {
 
     public void reduce(Text key, Iterable<Text> entries, Context context) throws IOException, InterruptedException {
       double finalRank = 0.0;
-
+      System.out.println(key.toString());
       for (Text entry : entries) {
         String raw = entry.toString();
         finalRank += Double.parseDouble(raw);
+        System.out.print(raw + " ");
       }
+      System.out.println();
       result.set(Double.toString(finalRank));
 
       context.write(key, result);
