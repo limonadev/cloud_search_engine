@@ -192,6 +192,52 @@ public class PageRank {
     }
   }
 
+  public static class DistributeEntryMapper extends Mapper<Object, Text, Text, Text> {
+
+    private Text destUrl = new Text();
+    private Text entry = new Text();
+
+    public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+      StringTokenizer itr = new StringTokenizer(value.toString());
+
+      if (itr.countTokens() > 2) {
+        itr.nextToken(); // Ignore the first because is the source
+        String rawEntry = "";
+        while (itr.hasMoreTokens()) {
+          rawEntry = itr.nextToken();
+        }
+        entry.set(rawEntry);
+
+        itr = new StringTokenizer(value.toString());
+        itr.nextToken(); // Ignore the first because is the source
+
+        while (itr.hasMoreTokens()) {
+          String token = itr.nextToken();
+          if (!itr.hasMoreTokens())
+            break;
+          destUrl.set(token);
+          context.write(destUrl, entry);
+        }
+      }
+    }
+  }
+
+  public static class DistributeEntryReducer extends Reducer<Text, Text, Text, Text> {
+    private Text result = new Text();
+
+    public void reduce(Text key, Iterable<Text> entries, Context context) throws IOException, InterruptedException {
+      double finalRank = 0.0;
+
+      for (Text entry : entries) {
+        String raw = entry.toString();
+        finalRank += Double.parseDouble(raw);
+      }
+      result.set(Double.toString(finalRank));
+
+      context.write(key, result);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -270,6 +316,24 @@ public class PageRank {
     if (hdfs.exists(secondOutput))
       hdfs.delete(secondOutput, true);
 
-    System.exit(combineJob.waitForCompletion(true) ? 0 : 1);
+    /// Executing the combination of out URLs, counts and ranks
+    combineJob.waitForCompletion(true);
+
+    Job distributeJob = new Job(conf, "distribute entries");
+    distributeJob.setJarByClass(PageRank.class);
+    distributeJob.setMapperClass(DistributeEntryMapper.class);
+    distributeJob.setReducerClass(DistributeEntryReducer.class);
+    distributeJob.setOutputKeyClass(Text.class);
+    distributeJob.setOutputValueClass(Text.class);
+
+    FileInputFormat.addInputPath(distributeJob, secondOutput);
+
+    Path thirdOutput = new Path("third_output/");
+    FileOutputFormat.setOutputPath(distributeJob, thirdOutput);
+
+    if (hdfs.exists(thirdOutput))
+      hdfs.delete(thirdOutput, true);
+
+    System.exit(distributeJob.waitForCompletion(true) ? 0 : 1);
   }
 }
