@@ -367,6 +367,42 @@ public class PageRank {
     if (hdfs.exists(thirdOutput))
       hdfs.delete(thirdOutput, true);
 
-    System.exit(distributeJob.waitForCompletion(true) ? 0 : 1);
+    distributeJob.waitForCompletion(true);
+
+    int iterations = 1;
+
+    for (int i = 0; i < iterations; i++) {
+      combineJob = new Job(conf, "combine previous outputs");
+      combineJob.setJarByClass(PageRank.class);
+      combineJob.setMapperClass(CombineUrlRankMapper.class);
+      combineJob.setReducerClass(CombineUrlRankReducer.class);
+      combineJob.setOutputKeyClass(Text.class);
+      combineJob.setOutputValueClass(Text.class);
+
+      FileInputFormat.addInputPath(combineJob, thirdOutput);
+      FileInputFormat.addInputPath(combineJob, outputDir);
+
+      FileOutputFormat.setOutputPath(combineJob, secondOutput);
+
+      if (hdfs.exists(secondOutput))
+        hdfs.delete(secondOutput, true);
+
+      combineJob.waitForCompletion(true);
+
+      distributeJob = new Job(conf, "distribute entries");
+      distributeJob.setJarByClass(PageRank.class);
+      distributeJob.setMapperClass(DistributeEntryMapper.class);
+      distributeJob.setReducerClass(DistributeEntryReducer.class);
+      distributeJob.setOutputKeyClass(Text.class);
+      distributeJob.setOutputValueClass(Text.class);
+
+      FileInputFormat.addInputPath(distributeJob, secondOutput);
+
+      FileOutputFormat.setOutputPath(distributeJob, thirdOutput);
+      if (hdfs.exists(thirdOutput))
+        hdfs.delete(thirdOutput, true);
+      distributeJob.waitForCompletion(true);
+    }
+    // System.exit(distributeJob.waitForCompletion(true) ? 0 : 1);
   }
 }
