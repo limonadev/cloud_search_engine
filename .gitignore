@@ -1,5 +1,8 @@
 compiled/
 group/
 input/
+first_output/
+second_output/
+third_output/
 output/
 *.jar
