@@ -41,6 +41,33 @@ import org.apache.hadoop.util.GenericOptionsParser;
 
 public class PageRank {
 
+  public static class BaseRankMapper extends Mapper<Object, Text, Text, Text> {
+
+    private Text fileKey = new Text();
+    private Text rank = new Text();
+
+    public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+      Configuration conf = context.getConfiguration();
+      double baseRank = conf.getDouble("base_rank", -1.0);
+
+      FileSplit fileSplit = (FileSplit) context.getInputSplit();
+      String filename = fileSplit.getPath().getName();
+
+      fileKey.set(filename);
+      rank.set(Double.toString(baseRank));
+
+      context.write(fileKey, rank);
+    }
+  }
+
+  public static class BaseRankReducer extends Reducer<Text, Text, Text, Text> {
+    public void reduce(Text key, Iterable<Text> urls, Context context) throws IOException, InterruptedException {
+
+      Text rank = urls.iterator().next();
+      context.write(key, rank);
+    }
+  }
+
   public static class OutUrlMapper extends Mapper<Object, Text, Text, Text> {
 
     private Text fileKey = new Text();
@@ -95,6 +122,76 @@ public class PageRank {
     }
   }
 
+  public static class CombineUrlRankMapper extends Mapper<Object, Text, Text, Text> {
+
+    private Text count = new Text();
+    private Text rank = new Text();
+    private Text urlFrom = new Text();
+    private Text urlTo = new Text();
+
+    public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
+      StringTokenizer itr = new StringTokenizer(value.toString());
+
+      FileSplit fileSplit = (FileSplit) context.getInputSplit();
+
+      String filename = fileSplit.getPath().getName();
+
+      if (itr.countTokens() == 2) {
+        urlFrom.set(itr.nextToken());
+        rank.set("**" + itr.nextToken() + "**");
+
+        context.write(urlFrom, rank);
+      } else if (itr.countTokens() > 0) {
+        urlFrom.set(itr.nextToken());
+
+        while (itr.hasMoreTokens()) {
+          String token = itr.nextToken();
+          urlTo.set(token);
+
+          if (itr.hasMoreTokens()) {
+            context.write(urlFrom, urlTo);
+          } else {
+            count.set("##" + token + "##");
+            context.write(urlFrom, count);
+          }
+        }
+      }
+    }
+  }
+
+  public static class CombineUrlRankReducer extends Reducer<Text, Text, Text, Text> {
+    private Text result = new Text();
+
+    private Pattern countPattern = Pattern.compile("\\#\\#.+\\#\\#", Pattern.CASE_INSENSITIVE);
+    private Matcher countMatcher;
+    private Pattern rankPattern = Pattern.compile("\\*\\*.+\\*\\*", Pattern.CASE_INSENSITIVE);
+    private Matcher rankMatcher;
+
+    public void reduce(Text key, Iterable<Text> values, Context context) throws IOException, InterruptedException {
+      String count = "", rank = "";
+      String urlsAndRank = "";
+
+      for (Text v : values) {
+        String raw = v.toString();
+        countMatcher = countPattern.matcher(raw);
+        rankMatcher = rankPattern.matcher(raw);
+
+        if (countMatcher.find()) {
+          count = raw.substring(2, raw.length() - 2);
+        } else if (rankMatcher.find()) {
+          rank = raw.substring(2, raw.length() - 2);
+        } else {
+          urlsAndRank += " " + v.toString();
+        }
+      }
+
+      double realEntry = Double.parseDouble(rank) / Integer.parseInt(count);
+      urlsAndRank += " " + Double.toString(realEntry);
+      result.set(urlsAndRank);
+      context.write(key, result);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     Configuration conf = new Configuration();
     String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
@@ -102,6 +199,36 @@ public class PageRank {
       System.err.println("Usage: pagerank <in> [<in>...] <out>");
       System.exit(2);
     }
+
+    FileSystem hdfs = FileSystem.get(conf);
+
+    /// Counting the total url number (files)
+    long fileNumber = 0;
+
+    for (int i = 1; i < otherArgs.length - 1; ++i) {
+      Path inputPath = new Path(otherArgs[i]);
+      fileNumber += hdfs.getContentSummary(inputPath).getFileCount();
+    }
+
+    conf.setDouble("base_rank", 1.0 / fileNumber);
+    /// Until here
+
+    Path groupPath = new Path(otherArgs[0]);
+
+    Job firstJob = new Job(conf, "set base rank");
+    firstJob.setJarByClass(PageRank.class);
+    firstJob.setMapperClass(BaseRankMapper.class);
+    firstJob.setReducerClass(BaseRankReducer.class);
+    firstJob.setOutputKeyClass(Text.class);
+    firstJob.setOutputValueClass(Text.class);
+
+    Path firstOutput = new Path("first_output");
+
+    FileOutputFormat.setOutputPath(firstJob, firstOutput);
+
+    if (hdfs.exists(firstOutput))
+      hdfs.delete(firstOutput, true);
+
     Job job = new Job(conf, "file count");
     job.setJarByClass(PageRank.class);
     job.setMapperClass(OutUrlMapper.class);
@@ -110,23 +237,10 @@ public class PageRank {
     job.setOutputKeyClass(Text.class);
     job.setOutputValueClass(Text.class);
 
-    FileSystem hdfs = FileSystem.get(conf);
-
-    Path groupPath = new Path(otherArgs[0]);
-    long fileNumber = 0;
-
     for (int i = 1; i < otherArgs.length - 1; ++i) {
       Path inputPath = new Path(otherArgs[i]);
+      FileInputFormat.addInputPath(firstJob, inputPath);
       FileInputFormat.addInputPath(job, inputPath);
-      fileNumber += hdfs.getContentSummary(inputPath).getFileCount();
-    }
-
-    try {
-      FSDataOutputStream out = hdfs.create(Path.mergePaths(groupPath, new Path("/count.txt")));
-      out.writeLong(fileNumber);
-      out.close();
-    } catch (Exception e) {
-      e.printStackTrace();
     }
 
     Path outputDir = new Path(otherArgs[otherArgs.length - 1]);
@@ -135,6 +249,27 @@ public class PageRank {
     if (hdfs.exists(outputDir))
       hdfs.delete(outputDir, true);
 
-    System.exit(job.waitForCompletion(true) ? 0 : 1);
+    /// Executing the set base rank job
+    firstJob.waitForCompletion(true);
+    /// Executing the count of out URLS for each file
+    job.waitForCompletion(true);
+
+    Job combineJob = new Job(conf, "combine previous outputs");
+    combineJob.setJarByClass(PageRank.class);
+    combineJob.setMapperClass(CombineUrlRankMapper.class);
+    combineJob.setReducerClass(CombineUrlRankReducer.class);
+    combineJob.setOutputKeyClass(Text.class);
+    combineJob.setOutputValueClass(Text.class);
+
+    FileInputFormat.addInputPath(combineJob, firstOutput);
+    FileInputFormat.addInputPath(combineJob, outputDir);
+
+    Path secondOutput = new Path("second_output/");
+    FileOutputFormat.setOutputPath(combineJob, secondOutput);
+
+    if (hdfs.exists(secondOutput))
+      hdfs.delete(secondOutput, true);
+
+    System.exit(combineJob.waitForCompletion(true) ? 0 : 1);
   }
 }
