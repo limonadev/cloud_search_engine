@@ -369,7 +369,7 @@ public class PageRank {
 
     distributeJob.waitForCompletion(true);
 
-    int iterations = 1;
+    int iterations = 2;
 
     for (int i = 0; i < iterations; i++) {
       combineJob = new Job(conf, "combine previous outputs");
