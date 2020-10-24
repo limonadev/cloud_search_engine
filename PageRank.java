@@ -279,59 +279,44 @@ public class PageRank {
       System.exit(2);
     }
 
-    FileSystem hdfs = FileSystem.get(conf);
+    String pathPrefix = otherArgs[0] + "results/";
 
     /// Counting the total url number (files)
-    long fileNumber = 0;
-
-    for (int i = 1; i < otherArgs.length - 1; ++i) {
-      Path inputPath = new Path(otherArgs[i]);
-      fileNumber += hdfs.getContentSummary(inputPath).getFileCount();
-    }
+    long fileNumber = 6;
 
     conf.setDouble("base_rank", 1.0 / fileNumber);
     /// Until here
 
-    Path groupPath = new Path(otherArgs[0]);
+    Job baseRankJob = new Job(conf, "set base rank");
+    baseRankJob.setJarByClass(PageRank.class);
+    baseRankJob.setMapperClass(BaseRankMapper.class);
+    baseRankJob.setReducerClass(BaseRankReducer.class);
+    baseRankJob.setOutputKeyClass(Text.class);
+    baseRankJob.setOutputValueClass(Text.class);
 
-    Job firstJob = new Job(conf, "set base rank");
-    firstJob.setJarByClass(PageRank.class);
-    firstJob.setMapperClass(BaseRankMapper.class);
-    firstJob.setReducerClass(BaseRankReducer.class);
-    firstJob.setOutputKeyClass(Text.class);
-    firstJob.setOutputValueClass(Text.class);
+    Path firstOutput = new Path(pathPrefix + "first_output/");
 
-    Path firstOutput = new Path("first_output");
+    FileOutputFormat.setOutputPath(baseRankJob, firstOutput);
 
-    FileOutputFormat.setOutputPath(firstJob, firstOutput);
+    Job urlCountJob = new Job(conf, "url count");
+    urlCountJob.setJarByClass(PageRank.class);
+    urlCountJob.setMapperClass(OutUrlMapper.class);
+    urlCountJob.setReducerClass(OutUrlReducer.class);
+    urlCountJob.setOutputKeyClass(Text.class);
+    urlCountJob.setOutputValueClass(Text.class);
 
-    if (hdfs.exists(firstOutput))
-      hdfs.delete(firstOutput, true);
+    Path inputPath = new Path(otherArgs[1]);
+    FileInputFormat.addInputPath(baseRankJob, inputPath);
+    FileInputFormat.addInputPath(urlCountJob, inputPath);
 
-    Job job = new Job(conf, "file count");
-    job.setJarByClass(PageRank.class);
-    job.setMapperClass(OutUrlMapper.class);
-    // job.setCombinerClass(OutUrlReducer.class);
-    job.setReducerClass(OutUrlReducer.class);
-    job.setOutputKeyClass(Text.class);
-    job.setOutputValueClass(Text.class);
-
-    for (int i = 1; i < otherArgs.length - 1; ++i) {
-      Path inputPath = new Path(otherArgs[i]);
-      FileInputFormat.addInputPath(firstJob, inputPath);
-      FileInputFormat.addInputPath(job, inputPath);
-    }
-
-    Path outputDir = new Path(otherArgs[otherArgs.length - 1]);
-    FileOutputFormat.setOutputPath(job, outputDir);
-
-    if (hdfs.exists(outputDir))
-      hdfs.delete(outputDir, true);
+    // Path outputDir = new Path(otherArgs[otherArgs.length - 1]);
+    Path secondOutput = new Path(pathPrefix + "second_output/");
+    FileOutputFormat.setOutputPath(urlCountJob, secondOutput);
 
     /// Executing the set base rank job
-    firstJob.waitForCompletion(true);
+    baseRankJob.waitForCompletion(true);
     /// Executing the count of out URLS for each file
-    job.waitForCompletion(true);
+    urlCountJob.waitForCompletion(true);
 
     Job combineJob = new Job(conf, "combine previous outputs");
     combineJob.setJarByClass(PageRank.class);
@@ -341,13 +326,10 @@ public class PageRank {
     combineJob.setOutputValueClass(Text.class);
 
     FileInputFormat.addInputPath(combineJob, firstOutput);
-    FileInputFormat.addInputPath(combineJob, outputDir);
+    FileInputFormat.addInputPath(combineJob, secondOutput);
 
-    Path secondOutput = new Path("second_output/");
-    FileOutputFormat.setOutputPath(combineJob, secondOutput);
-
-    if (hdfs.exists(secondOutput))
-      hdfs.delete(secondOutput, true);
+    Path thirdOutput = new Path(pathPrefix + "third_output/");
+    FileOutputFormat.setOutputPath(combineJob, thirdOutput);
 
     /// Executing the combination of out URLs, counts and ranks
     combineJob.waitForCompletion(true);
@@ -359,18 +341,14 @@ public class PageRank {
     distributeJob.setOutputKeyClass(Text.class);
     distributeJob.setOutputValueClass(Text.class);
 
-    FileInputFormat.addInputPath(distributeJob, secondOutput);
+    FileInputFormat.addInputPath(distributeJob, thirdOutput);
 
-    Path thirdOutput = new Path("third_output/");
-    FileOutputFormat.setOutputPath(distributeJob, thirdOutput);
-
-    if (hdfs.exists(thirdOutput))
-      hdfs.delete(thirdOutput, true);
+    Path fourthOutput = new Path(pathPrefix + "fourth_output/");
+    FileOutputFormat.setOutputPath(distributeJob, fourthOutput);
 
     distributeJob.waitForCompletion(true);
 
-    int iterations = 1;
-
+    int iterations = 2;
     for (int i = 0; i < iterations; i++) {
       combineJob = new Job(conf, "combine previous outputs");
       combineJob.setJarByClass(PageRank.class);
@@ -379,14 +357,13 @@ public class PageRank {
       combineJob.setOutputKeyClass(Text.class);
       combineJob.setOutputValueClass(Text.class);
 
-      FileInputFormat.addInputPath(combineJob, thirdOutput);
-      FileInputFormat.addInputPath(combineJob, outputDir);
+      FileInputFormat.addInputPath(combineJob, fourthOutput);
+      FileInputFormat.addInputPath(combineJob, secondOutput);
 
-      FileOutputFormat.setOutputPath(combineJob, secondOutput);
+      thirdOutput = new Path(pathPrefix + "third_output_" + Integer.toString(i + 1) + "_iteration/");
+      FileOutputFormat.setOutputPath(combineJob, thirdOutput);
 
-      if (hdfs.exists(secondOutput))
-        hdfs.delete(secondOutput, true);
-
+      /// Executing the combination of out URLs, counts and ranks
       combineJob.waitForCompletion(true);
 
       distributeJob = new Job(conf, "distribute entries");
@@ -396,13 +373,16 @@ public class PageRank {
       distributeJob.setOutputKeyClass(Text.class);
       distributeJob.setOutputValueClass(Text.class);
 
-      FileInputFormat.addInputPath(distributeJob, secondOutput);
+      FileInputFormat.addInputPath(distributeJob, thirdOutput);
 
-      FileOutputFormat.setOutputPath(distributeJob, thirdOutput);
-      if (hdfs.exists(thirdOutput))
-        hdfs.delete(thirdOutput, true);
+      if (i + 1 == iterations) {
+        fourthOutput = new Path(otherArgs[2]);
+      } else {
+        fourthOutput = new Path(pathPrefix + "fourth_output_" + Integer.toString(i + 1) + "_iteration/");
+      }
+      FileOutputFormat.setOutputPath(distributeJob, fourthOutput);
+
       distributeJob.waitForCompletion(true);
     }
-    // System.exit(distributeJob.waitForCompletion(true) ? 0 : 1);
   }
 }
