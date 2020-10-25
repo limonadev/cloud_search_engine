@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "prismatic-vial-174715",
+  "private_key_id": "3778cd48121b6ea5bebeeae7ce9e35924d539051",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDKJtVEDAGhRjFM\nlBqZPUWJkQ4DJov+y3qN3Zrd/JcjOi7pnwsdllyXDgcum2IpWyJJ/nepV7Wb5xX+\nRX9ANQqQimimfZobDAmW8klvPR+I4a1Hr7GXXgiJyGeW8Gzs45oBqYE7LNaMIxhS\nIn8w3Cxda+tPMGD6eOY0SB+Zsns6ReTF0yUFw8h70SZLs4YUiRMOLJbTkHeV6zR+\nSs+FrKFPcsZWb9WeHBzpzroWMLATD1GdA7m01oohDHiOF7Xl3ctdmTjg6xc6kBJa\nEKv5TccU8NoAEOFRsuGKHMSWdZ0qIm15xesYAq7kyjH+WKouisoqkkXggjS98KUG\nF2nv2fm7AgMBAAECggEAV7sGryNuyakG2C8mY/69YPh81k0yUH/KTiswfMqUZQtp\nNKZ7Unng8QV7hHSW40/Tz70J/Yo9HM3rM5DBqwHZ9eS7ihXUfYx51PKNgCNMvkEC\nzKupLQH4PqOkoVLyUtRsD/CaTy4kZmkMswiZnoDPGDQvyQw76jfx4Bq07CUTabQK\nIfIyDzwbVxKEtLv6aC0TaSWLxpEV74PS2vOph0AjkBBjfCLdWmXXh4FQKWJZjaLb\npCjIZhM5kP3zUAIZaGN+VL7U6lXrBc7Pvapdbf7Q2lyIOsdlIktjZlFPrFRogMOw\nHlFRb8Vo9PYhzMxLUp44q8jgtWc+jE+re0YPt1xosQKBgQDkdbct70Y1cTGkHHDe\nxG+2C5hAxQsNNF5BGrVAv7L+AbcSxs3FVESAsmz1GdcBlHDqhnJ79tHGkiUVSpZY\nlFgx6QJJE1uOqyS7cK7ogUSv9CxUfyOP6CCwEZVjqCQiPkxqB5Z+QFpmFc3nhGZV\n7nvsWBGQssRelPpd99pRJWqonwKBgQDihT8xtL2ZyA38a/3OLUVPDo9SzCRGUYyk\nMXaXOdFu4Z3Jcju/V5Wr1F2mbkumZN9y41TE2qmW28G+Z+jljL0lTqr5urSfVav8\ns5w9n8fc9FPO+WD18waztvOodE2Vlsbm97CWpnOWWxmJXYoQJGTP8WpdBcdOSdAZ\nIAvai+6tZQKBgQC73oWNU5eTuQrOXsj+l+EZff1tPdwxtp/Pv+vPXBUQRk7LNQrf\nu8U9Y/yvrdkeJniYk4kvoa+uMF4oXRa3rv27xVYoy69d6iUhsq9S6YKXgx61OXwA\nCi5fO4Zy1kEom7xw8N5z4e20xzd0rG8POTdVCrMfH7LV6ILepUQ1uKQ2FwKBgASj\ncd3Us6U4gYDPvUzBhI/P3oN1hrCh7t1V3fXOy0kX+aEsY6jRZFE2cgx8abQokKLL\noOq/B4X9TgRWIGDC9wSSjdG7TwOMP49XJjXk1bTik+zDEoc2yMZZUrf6WbRceAo2\nvDj5g5hqmSVE8xTNifrwGJt7CM/Dly1MiLGa9/I5AoGBAMw3hIEwmF+6RV85nzXY\nSd3wcH0SCgzlGuepgMgQCl7YQKQhf4iiMf3389OweJs6McWwirOUOnmaRAAeDXDd\n3QEMSRnhsxEDARM/6WD5FD7piEonPjFjm4PT8ZJ2/iuCURXnzRP1LisyRMySxquH\nALnnHZEZ2mKDMsTVxnB0frYP\n-----END PRIVATE KEY-----\n",
+  "client_email": "client-service-account@prismatic-vial-174715.iam.gserviceaccount.com",
+  "client_id": "105240012605300742072",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/client-service-account%40prismatic-vial-174715.iam.gserviceaccount.com"
+}
