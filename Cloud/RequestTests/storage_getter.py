@@ -1,11 +1,33 @@
+import requests
 from google.cloud import storage
+
+def parse_and_upload_ranks(f):
+    pairs = f.readlines()
+    body = {}
+    for pair in pairs:
+        raw = pair.split()
+        if len(raw) == 2:
+            web, rank = raw[0], raw[1]
+            web = web.replace('.', '-')
+            print(web, rank)
+            body[web] = rank
+    if len(body) == 0:
+        return
+    r = requests.patch('https://prismatic-vial-174715.firebaseio.com/ranks.json', json=body)
+    print(r, r.content)
 
 storage_client = storage.Client()
 
 print('nani')
 bucket = storage_client.get_bucket('test_bucket_limonadev')
+print('lol')
 for blob in bucket.list_blobs():
     if blob.name[:7] == 'output/' and blob.name != 'output/':
-        with open(f'Rank/{blob.name}', "wb") as f:
-            blob.download_to_file(f)
-            print(blob.name + ' ' + '#'*70)
+        with open(f'Rank/{blob.name}', "w+") as f:
+            print('downloading')
+            content = blob.download_as_string().decode('utf-8')
+            print('downloaded')
+            f.write(content)
+            f.seek(0)
+            parse_and_upload_ranks(f)
+
