@@ -1,3 +1,4 @@
+import os
 import requests
 from google.cloud import storage
 
@@ -13,8 +14,8 @@ def parse_and_upload_ranks(f):
             body[web] = rank
     if len(body) == 0:
         return
-    r = requests.patch('https://prismatic-vial-174715.firebaseio.com/ranks.json', json=body)
-    print(r, r.content)
+    body = str(body).replace("'",'"')
+    os.system("curl -X PATCH -d '" + body + "' 'https://prismatic-vial-174715.firebaseio.com/ranks.json'")
 
 storage_client = storage.Client()
 
