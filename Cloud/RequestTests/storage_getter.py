@@ -19,12 +19,18 @@ def parse_and_upload_ranks(f):
 
 def parse_and_upload_index(f):
     pairs = f.readlines()
+    body = {}
     for pair in pairs:
         raw = pair.split()
         if len(raw) == 2:
             word, web = raw[0], raw[1]
             print(word, web)
-            os.system("curl -X POST -d '\"" + web + f"\"' 'https://prismatic-vial-174715.firebaseio.com/index/{word}.json'")
+            if word not in body:
+                body[word] = ''
+            body[word] += f' {web}'
+    for word,web_list in body.items():
+        print(word)
+        os.system("curl -X POST -d '\"" + web_list + f"\"' 'https://prismatic-vial-174715.firebaseio.com/index/{word}.json'")
 
 storage_client = storage.Client()
 
