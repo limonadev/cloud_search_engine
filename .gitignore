@@ -7,3 +7,4 @@ third_output/
 output/
 output_index/
 *.jar
+.vscode
