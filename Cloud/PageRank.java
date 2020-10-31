@@ -282,7 +282,7 @@ public class PageRank {
     String pathPrefix = otherArgs[0] + "results/";
 
     /// Counting the total url number (files)
-    long fileNumber = 6;
+    long fileNumber = Integer.parseInt(otherArgs[3]);
 
     conf.setDouble("base_rank", 1.0 / fileNumber);
     /// Until here
@@ -348,7 +348,7 @@ public class PageRank {
 
     distributeJob.waitForCompletion(true);
 
-    int iterations = 2;
+    int iterations = Integer.parseInt(otherArgs[4]);
     for (int i = 0; i < iterations; i++) {
       combineJob = new Job(conf, "combine previous outputs");
       combineJob.setJarByClass(PageRank.class);
