@@ -6,6 +6,56 @@ admin.initializeApp();
 
 var db = admin.database();
 
+//https://us-central1-prismatic-vial-174715.cloudfunctions.net/searchWords
+export const searchWords = functions.https.onRequest(async (request, response) => {
+    if (request.method !== 'POST') {
+        response.sendStatus(400).send('You need to do a POST request!');
+    }
+
+    functions.logger.info('Nani');
+
+    let words = request.body.words;
+
+    let result: Map<string, [string, number][]> = new Map();
+
+    let ranksMem: Map<string, number> = new Map();
+
+    for (let word of words) {
+        functions.logger.info(word);
+
+        let wordGroups = await getWordGroups(word);
+
+        let urls = await getWordUrlsByGroups(word, wordGroups);
+        functions.logger.info('PROMISE ' + urls);
+
+        if (!result.has(word)) {
+            result.set(word, []);
+        }
+
+        for (let url of urls) {
+            if (!ranksMem.has(url)) {
+                let rank = await getUrlRank(url);
+                if (rank === null) continue;
+
+                ranksMem.set(url, parseFloat(rank));
+            }
+
+            functions.logger.info('RANK ' + ranksMem.get(url));
+            let prevList = result.get(word)!;
+            prevList.push([url, ranksMem.get(url)!]);
+            result.set(word, prevList);
+            //result.get(word)?.push([url, ranksMem.get(url)!]);
+        }
+    }
+
+    functions.logger.info('HERE');
+    functions.logger.info(result);
+    let t = mapToObject(result);
+    functions.logger.info(t);
+    response.status(200).send(t);
+});
+
+
 //https://us-central1-prismatic-vial-174715.cloudfunctions.net/helloWorld
 export const helloWorld = functions.https.onRequest(async (request, response) => {
     if (request.method !== 'POST') {
@@ -56,6 +106,47 @@ function mapToObject(map: Map<string, [string, number][]>) {
     return Object.assign(Object.create(null), ...[...map].map(v => ({ [v[0]]: v[1] })));
 }
 
+async function getWordGroups(word: string) {
+    if (word.length === 0) return [];
+    let groupsRef = db.ref("index_test/groups/" + word.charAt(0));
+
+    let letterBranch: DataSnapshot = await groupsRef.once("value", function (x: DataSnapshot) {
+        return [];
+    });
+
+    let groups: string[] = [];
+    letterBranch.forEach(snap => {
+        groups = groups.concat(snap.val());
+    });
+
+    functions.logger.info(groups);
+
+    return groups;
+}
+
+async function getWordUrlsByGroups(word: string, groups: string[]) {
+    let urls: string[] = [];
+
+    let letter = word.charAt(0);
+    for (let groupName of groups) {
+        let groupRef = db.ref("index_test/words/" + letter + "/" + groupName + "/" + word);
+
+        let rawUrls: DataSnapshot = await groupRef.once("value", function (x: DataSnapshot) {
+            return [];
+        });
+
+        if (rawUrls.val() === null) continue;
+
+        let val: string = rawUrls.val();
+        let partialUrls: string[] = val.split(' ').filter((v) => {
+            return v.search(' ') === -1 && v.length !== 0;
+        });
+
+        urls = urls.concat(partialUrls);
+    }
+
+    return urls;
+}
 
 async function getWordUrls(word: string) {
     let wordRef = db.ref('index/' + word);
