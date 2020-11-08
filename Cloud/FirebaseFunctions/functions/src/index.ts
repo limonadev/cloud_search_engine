@@ -1,6 +1,8 @@
 import * as functions from 'firebase-functions';
 import { DataSnapshot } from 'firebase-functions/lib/providers/database';
 
+const cors = require('cors')({ origin: true });
+
 var admin = require('firebase-admin');
 admin.initializeApp();
 
@@ -8,51 +10,52 @@ var db = admin.database();
 
 //https://us-central1-prismatic-vial-174715.cloudfunctions.net/searchWords
 export const searchWords = functions.https.onRequest(async (request, response) => {
-    if (request.method !== 'POST') {
-        response.sendStatus(400).send('You need to do a POST request!');
-    }
-
-    functions.logger.info('Nani');
-
-    let words = request.body.words;
-
-    let result: Map<string, [string, number][]> = new Map();
-
-    let ranksMem: Map<string, number> = new Map();
-
-    for (let word of words) {
-        functions.logger.info(word);
-
-        let wordGroups = await getWordGroups(word);
-
-        let urls = await getWordUrlsByGroups(word, wordGroups);
-        functions.logger.info('PROMISE ' + urls);
-
-        if (!result.has(word)) {
-            result.set(word, []);
+    cors(request, response, async () => {
+        if (request.method !== 'POST') {
+            response.sendStatus(400).send('You need to do a POST request!');
         }
 
-        for (let url of urls) {
-            if (!ranksMem.has(url)) {
-                let rank = await getUrlRank(url);
-                if (rank === null) continue;
+        functions.logger.info('Nani');
+        let words = request.body.words;
 
-                ranksMem.set(url, parseFloat(rank));
+        let result: Map<string, [string, number][]> = new Map();
+
+        let ranksMem: Map<string, number> = new Map();
+
+        for (let word of words) {
+            functions.logger.info(word);
+
+            let wordGroups = await getWordGroups(word);
+
+            let urls = await getWordUrlsByGroups(word, wordGroups);
+            functions.logger.info('PROMISE ' + urls);
+
+            if (!result.has(word)) {
+                result.set(word, []);
             }
 
-            functions.logger.info('RANK ' + ranksMem.get(url));
-            let prevList = result.get(word)!;
-            prevList.push([url, ranksMem.get(url)!]);
-            result.set(word, prevList);
-            //result.get(word)?.push([url, ranksMem.get(url)!]);
-        }
-    }
+            for (let url of urls) {
+                if (!ranksMem.has(url)) {
+                    let rank = await getUrlRank(url);
+                    if (rank === null) continue;
 
-    functions.logger.info('HERE');
-    functions.logger.info(result);
-    let t = mapToObject(result);
-    functions.logger.info(t);
-    response.status(200).send(t);
+                    ranksMem.set(url, parseFloat(rank));
+                }
+
+                functions.logger.info('RANK ' + ranksMem.get(url));
+                let prevList = result.get(word)!;
+                prevList.push([url, ranksMem.get(url)!]);
+                result.set(word, prevList);
+                //result.get(word)?.push([url, ranksMem.get(url)!]);
+            }
+        }
+
+        functions.logger.info('HERE');
+        functions.logger.info(result);
+        let t = mapToObject(result);
+        functions.logger.info(t);
+        response.status(200).send(t);
+    });
 });
 
 
